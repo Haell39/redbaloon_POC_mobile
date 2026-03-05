@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+    <title>Autorização Selfie</title>
+    <style>
+      /* ── Reset & Base ── */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #0f1117;
+        --surface: #1a1d27;
+        --accent: #6c5ce7;
+        --success: #00b894;
+        --danger: #d63031;
+        --text: #f0f0f0;
+        --muted: #8a8a9a;
+        --radius: 16px;
+      }
+
+      html,
+      body {
+        height: 100%;
+        font-family:
+          "Segoe UI",
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        overflow: hidden;
+      }
+
+      /* ── Layout ── */
+      .app {
+        display: flex;
+        flex-direction: column;
+        height: 100dvh; /* dynamic viewport height – mobile safe */
+        max-width: 480px;
+        margin: 0 auto;
+        padding: 16px 12px;
+        gap: 14px;
+      }
+
+      /* ── Header ── */
+      header {
+        text-align: center;
+      }
+      header h1 {
+        font-size: 1.35rem;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+      }
+      header p {
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+
+      /* ── Viewfinder ── */
+      .viewfinder {
+        flex: 1;
+        position: relative;
+        border-radius: var(--radius);
+        overflow: hidden;
+        background: #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .viewfinder video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scaleX(-1); /* espelha câmera frontal */
+      }
+
+      /* Corner overlays */
+      .viewfinder::before,
+      .viewfinder::after {
+        content: "";
+        position: absolute;
+        width: 60px;
+        height: 60px;
+        border: 3px solid var(--accent);
+        pointer-events: none;
+        z-index: 2;
+      }
+      .viewfinder::before {
+        top: 12px;
+        left: 12px;
+        border-right: none;
+        border-bottom: none;
+        border-radius: 8px 0 0 0;
+      }
+      .viewfinder::after {
+        top: 12px;
+        right: 12px;
+        border-left: none;
+        border-bottom: none;
+        border-radius: 0 8px 0 0;
+      }
+
+      .corner-bl,
+      .corner-br {
+        position: absolute;
+        width: 60px;
+        height: 60px;
+        border: 3px solid var(--accent);
+        pointer-events: none;
+        z-index: 2;
+      }
+      .corner-bl {
+        bottom: 12px;
+        left: 12px;
+        border-right: none;
+        border-top: none;
+        border-radius: 0 0 0 8px;
+      }
+      .corner-br {
+        bottom: 12px;
+        right: 12px;
+        border-left: none;
+        border-top: none;
+        border-radius: 0 0 8px 0;
+      }
+
+      .viewfinder .placeholder {
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+
+      /* ── Button ── */
+      .btn-verify {
+        width: 100%;
+        padding: 18px;
+        font-size: 1.15rem;
+        font-weight: 700;
+        border: none;
+        border-radius: var(--radius);
+        background: var(--accent);
+        color: #fff;
+        cursor: pointer;
+        transition:
+          background 0.2s,
+          transform 0.1s;
+        letter-spacing: 0.3px;
+        flex-shrink: 0;
+      }
+      .btn-verify:active {
+        transform: scale(0.97);
+      }
+      .btn-verify:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      /* ── Result card ── */
+      .result {
+        display: none; /* hidden by default */
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 18px;
+        border-radius: var(--radius);
+        background: var(--surface);
+        text-align: center;
+        flex-shrink: 0;
+        animation: fadeUp 0.3s ease;
+      }
+      .result.show {
+        display: flex;
+      }
+      .result.success {
+        border: 2px solid var(--success);
+      }
+      .result.error {
+        border: 2px solid var(--danger);
+      }
+
+      .result .icon {
+        font-size: 2.2rem;
+      }
+      .result .name {
+        font-size: 1.15rem;
+        font-weight: 700;
+      }
+      .result .confidence {
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+
+      .result img.snap {
+        width: 90px;
+        height: 90px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid var(--success);
+        margin-top: 4px;
+      }
+      .result.error img.snap {
+        border-color: var(--danger);
+      }
+
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(12px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* ── Spinner ── */
+      .spinner {
+        display: none;
+        width: 28px;
+        height: 28px;
+        border: 3px solid rgba(255, 255, 255, 0.15);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+        margin: 0 auto;
+      }
+      .spinner.show {
+        display: block;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>🔐 Autorização Selfie</h1>
+        <p>Posicione seu rosto e toque em validar</p>
+      </header>
+
+      <!-- Camera -->
+      <div class="viewfinder">
+        <video id="video" autoplay playsinline muted></video>
+        <span class="placeholder" id="placeholder">Carregando câmera…</span>
+        <div class="corner-bl"></div>
+        <div class="corner-br"></div>
+      </div>
+
+      <!-- Capture canvas (hidden) -->
+      <canvas id="canvas" style="display: none"></canvas>
+
+      <!-- Result -->
+      <div class="result" id="result">
+        <span class="icon" id="resultIcon"></span>
+        <img class="snap" id="resultSnap" alt="selfie" />
+        <span class="name" id="resultName"></span>
+        <span class="confidence" id="resultConf"></span>
+      </div>
+
+      <!-- Spinner -->
+      <div class="spinner" id="spinner"></div>
+
+      <!-- Action -->
+      <button class="btn-verify" id="btnVerify" disabled>
+        📸 VALIDAR ACESSO
+      </button>
+    </div>
+
+    <script>
+      (() => {
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("canvas");
+        const btnVerify = document.getElementById("btnVerify");
+        const placeholder = document.getElementById("placeholder");
+        const spinner = document.getElementById("spinner");
+        const resultDiv = document.getElementById("result");
+        const resultIcon = document.getElementById("resultIcon");
+        const resultSnap = document.getElementById("resultSnap");
+        const resultName = document.getElementById("resultName");
+        const resultConf = document.getElementById("resultConf");
+
+        /* ── Iniciar câmera ── */
+        async function startCamera() {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                facingMode: "user",
+                width: { ideal: 720 },
+                height: { ideal: 1280 },
+              },
+              audio: false,
+            });
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+              placeholder.style.display = "none";
+              btnVerify.disabled = false;
+            };
+          } catch (err) {
+            placeholder.textContent = "⚠ Câmera não disponível";
+            console.error(err);
+          }
+        }
+
+        /* ── Capturar frame ── */
+        function captureFrame() {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          const ctx = canvas.getContext("2d");
+          // Espelha horizontalmente para bater com o que o usuário vê
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(video, 0, 0);
+          return new Promise((resolve) =>
+            canvas.toBlob(resolve, "image/jpeg", 0.9),
+          );
+        }
+
+        /* ── Mostrar resultado ── */
+        function showResult({ match, name, confidence, snapUrl }) {
+          resultDiv.classList.remove("success", "error");
+          resultDiv.classList.add("show", match ? "success" : "error");
+
+          resultIcon.textContent = match ? "✅" : "❌";
+          resultName.textContent = name;
+          resultConf.textContent = match
+            ? `Confiança: ${(confidence * 100).toFixed(1)}%`
+            : confidence > 0
+              ? `Similaridade: ${(confidence * 100).toFixed(1)}%`
+              : "";
+
+          resultSnap.src = snapUrl;
+        }
+
+        /* ── Fluxo principal ── */
+        btnVerify.addEventListener("click", async () => {
+          btnVerify.disabled = true;
+          resultDiv.classList.remove("show");
+          spinner.classList.add("show");
+
+          try {
+            const blob = await captureFrame();
+            const snapUrl = URL.createObjectURL(blob);
+
+            const form = new FormData();
+            form.append("file", blob, "selfie.jpg");
+
+            const res = await fetch("/verify", { method: "POST", body: form });
+            const data = await res.json();
+
+            showResult({ ...data, snapUrl });
+          } catch (err) {
+            showResult({
+              match: false,
+              name: "Erro de conexão",
+              confidence: 0,
+              snapUrl: "",
+            });
+            console.error(err);
+          } finally {
+            spinner.classList.remove("show");
+            btnVerify.disabled = false;
+          }
+        });
+
+        /* ── Boot ── */
+        startCamera();
+      })();
+    </script>
+  </body>
+</html>
