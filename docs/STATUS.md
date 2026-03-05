@@ -4,46 +4,56 @@
 
 ---
 
-## Estado Atual: ✅ POC Funcional
+## Estado Atual: ✅ MVP Funcional (v0.2)
 
-O sistema está operacional para demonstração local. Todas as funcionalidades
-core da POC foram implementadas e testadas.
+O sistema evoluiu de POC para MVP. Inclui persistência de embeddings
+via pickle, três faixas de confiança e contrato de API padronizado
+para integração com frontend Angular.
 
 ---
 
 ## O que está pronto
 
-| Feature                                          | Status |
-| ------------------------------------------------ | ------ |
-| Carregamento automático da pasta `database/`     | ✅     |
-| Geração de embeddings com InsightFace            | ✅     |
-| API `POST /verify` (verificação facial)          | ✅     |
-| API `GET /users` (listagem de cadastros)         | ✅     |
-| Tratamento de erros (imagem inválida, sem rosto) | ✅     |
-| Frontend mobile-first com câmera frontal         | ✅     |
-| Feedback visual (verde/vermelho + confiança)     | ✅     |
-| CORS liberado para acesso pelo celular           | ✅     |
-| Inicialização do modelo no startup da API        | ✅     |
+| Feature                                            | Status |
+| -------------------------------------------------- | ------ |
+| Carregamento automático da pasta `database/`       | ✅     |
+| Geração de embeddings com InsightFace              | ✅     |
+| **Cache pickle** (`face_encodings.pkl`)            | ✅ NEW |
+| **Load instantâneo** quando cache existe           | ✅ NEW |
+| API `POST /verify` (contrato padronizado)          | ✅ UPD |
+| API `GET /users` (listagem de cadastros)           | ✅     |
+| **API `GET /refresh-db`** (recarrega sem restart)  | ✅ NEW |
+| **3 faixas de confiança** (verde/amarelo/vermelho) | ✅ NEW |
+| **Campo `message`** no retorno JSON                | ✅ NEW |
+| Tratamento de erros (imagem inválida, sem rosto)   | ✅     |
+| Test client mobile-first com câmera frontal        | ✅ UPD |
+| **Status bar** (API online, qtd cadastros)         | ✅ NEW |
+| **Botão refresh DB** no test client                | ✅ NEW |
+| **Snippet Angular** (Service + Component)          | ✅ NEW |
+| CORS liberado para acesso pelo celular             | ✅     |
+| Inicialização do modelo no startup da API          | ✅     |
 
 ---
 
 ## Limitações Conhecidas (POC)
 
-| Limitação                        | Impacto | Observação                                         |
-| -------------------------------- | ------- | -------------------------------------------------- |
-| Embeddings apenas em memória RAM | Médio   | Perdem-se ao reiniciar o servidor                  |
-| 1 foto por pessoa no cadastro    | Médio   | Múltiplos ângulos aumentariam a precisão           |
-| Sem autenticação na API          | Alto    | Qualquer dispositivo na rede pode chamar `/verify` |
-| CORS `allow_origins=["*"]`       | Alto    | Adequado apenas para POC local                     |
-| Execução somente em CPU          | Baixo   | Latência ~1–3 s por verificação (CPU)              |
-| Sem persistência de logs         | Baixo   | Logs apenas no console                             |
-| Sem rate limiting                | Baixo   | Sem proteção contra spam de requests               |
+| Limitação                            | Impacto   | Observação                                         |
+| ------------------------------------ | --------- | -------------------------------------------------- |
+| ~~Embeddings apenas em memória RAM~~ | ~~Médio~~ | **RESOLVIDO** — cache pickle em disco              |
+| 1 foto por pessoa no cadastro        | Médio     | Múltiplos ângulos aumentariam a precisão           |
+| Sem autenticação na API              | Alto      | Qualquer dispositivo na rede pode chamar `/verify` |
+| CORS `allow_origins=["*"]`           | Alto      | Adequado apenas para POC local                     |
+| Execução somente em CPU              | Baixo     | Latência ~1–3 s por verificação (CPU)              |
+| Sem persistência de logs             | Baixo     | Logs apenas no console                             |
+| Sem rate limiting                    | Baixo     | Sem proteção contra spam de requests               |
 
 ---
 
 ## Próximos Passos (se evoluir para produção)
 
-- [ ] Persistência de embeddings em banco (SQLite / Redis / Postgres + pgvector)
+- [x] ~~Persistência de embeddings~~ → Implementado via pickle (`face_encodings.pkl`)
+- [x] ~~Refresh de base sem restart~~ → Endpoint `GET /refresh-db`
+- [x] ~~Contrato JSON padronizado~~ → `{ match, name, confidence, message }`
 - [ ] Suporte a múltiplas fotos por pessoa (média dos embeddings)
 - [ ] Autenticação JWT ou API Key na rota `/verify`
 - [ ] Liveness detection (anti-spoofing) para evitar foto de foto
@@ -67,14 +77,13 @@ core da POC foram implementadas e testadas.
 
 ---
 
-## Threshold de Confiança
+## Threshold de Confiança (v0.2)
 
-| Score (Cosine Similarity) | Interpretação      |
-| ------------------------- | ------------------ |
-| `>= 0.80`                 | Match forte ✅     |
-| `0.60 – 0.79`             | Match razoável ⚠️  |
-| `0.50 – 0.59`             | Match limítrofe ⚠️ |
-| `< 0.50`                  | Desconhecido ❌    |
+| Score (Cosine Similarity) | Faixa           | `match` | Cor no frontend |
+| ------------------------- | --------------- | ------- | --------------- |
+| `>= 0.65`                 | Autorizado ✅   | `true`  | Verde           |
+| `0.50 – 0.64`             | Dúvida ⚠️       | `false` | Amarelo         |
+| `< 0.50`                  | Desconhecido ❌ | `false` | Vermelho        |
 
 ---
 

@@ -2,22 +2,25 @@
 
 ## Visão Geral
 
-POC de reconhecimento facial local, sem nuvem, sem Docker.  
-O backend roda no PC e o frontend é acessado pelo celular via rede local.
+MVP de reconhecimento facial local, sem nuvem, sem Docker.  
+O backend roda no PC e o frontend é acessado pelo celular via rede local.  
+O frontend de produção será Angular — o `test_client.html` serve para validação local.
 
 ---
 
 ## Stack
 
-| Camada     | Tecnologia                            | Versão mínima |
-| ---------- | ------------------------------------- | ------------- |
-| Linguagem  | Python                                | 3.11          |
-| API        | FastAPI + Uvicorn                     | —             |
-| Face AI    | InsightFace (`buffalo_l`)             | —             |
-| Inferência | ONNX Runtime (`CPUExecutionProvider`) | —             |
-| Visão      | OpenCV (`cv2`)                        | —             |
-| Álgebra    | NumPy                                 | —             |
-| Frontend   | HTML + CSS + JS vanilla               | —             |
+| Camada          | Tecnologia                            | Versão mínima |
+| --------------- | ------------------------------------- | ------------- |
+| Linguagem       | Python                                | 3.11          |
+| API             | FastAPI + Uvicorn                     | —             |
+| Face AI         | InsightFace (`buffalo_l`)             | —             |
+| Inferência      | ONNX Runtime (`CPUExecutionProvider`) | —             |
+| Visão           | OpenCV (`cv2`)                        | —             |
+| Álgebra         | NumPy                                 | —             |
+| Frontend        | HTML + CSS + JS vanilla (test client) | —             |
+| Frontend (prod) | Angular (integração futura)           | 17+           |
+| Cache           | Pickle (`face_encodings.pkl`)         | —             |
 
 ---
 
@@ -25,15 +28,18 @@ O backend roda no PC e o frontend é acessado pelo celular via rede local.
 
 ```
 redbaloon_POC_mobile/
-├── main.py              # Entrypoint FastAPI
-├── face_logic.py        # Serviço de reconhecimento facial
+├── main.py              # Entrypoint FastAPI (v0.2)
+├── face_core.py         # Serviço facial com cache pickle
+├── face_logic.py        # (legado POC — pode ser removido)
+├── angular_snippet.ts   # Exemplo de integração Angular
 ├── requirements.txt     # Dependências pip
+├── face_encodings.pkl   # Cache de embeddings (auto-gerado)
 │
 ├── database/            # Fotos de cadastro (ex: guilherme.jpg)
 │   └── *.jpg / *.png / *.bmp / *.webp
 │
 ├── static/
-│   └── index.html       # Frontend mobile-first
+│   └── index.html       # Test client mobile-first (v0.2)
 │
 ├── docs/                # Esta pasta
 │   ├── INFRA.md
@@ -98,25 +104,29 @@ ipconfig | Select-String "IPv4"
 
 ## Modelo de Reconhecimento
 
-| Parâmetro          | Valor                     |
-| ------------------ | ------------------------- |
-| Modelo             | `buffalo_l`               |
-| Detector           | SCRFD (face detection)    |
-| Reconhecedor       | ArcFace (embedding 512-d) |
-| Similaridade       | Cosine Similarity         |
-| Threshold de match | `>= 0.50`                 |
-| Execução           | CPU (ONNX Runtime)        |
-| Resolução detecção | 640 × 640                 |
+| Parâmetro          | Valor                         |
+| ------------------ | ----------------------------- |
+| Modelo             | `buffalo_l`                   |
+| Detector           | SCRFD (face detection)        |
+| Reconhecedor       | ArcFace (embedding 512-d)     |
+| Similaridade       | Cosine Similarity             |
+| Threshold match    | `>= 0.65` (verde)             |
+| Threshold dúvida   | `0.50 – 0.64` (amarelo)       |
+| Threshold rejeição | `< 0.50` (vermelho)           |
+| Cache              | `face_encodings.pkl` (pickle) |
+| Execução           | CPU (ONNX Runtime)            |
+| Resolução detecção | 640 × 640                     |
 
 ---
 
 ## Arquitetura Simplificada
 
 ```
-Celular (browser)
+Celular (browser / Angular App)
       │
-      │  POST /verify  (multipart/form-data)
-      │  GET  /users
+      │  POST /verify      (multipart/form-data)
+      │  GET  /users       (debug)
+      │  GET  /refresh-db  (recarrega banco)
       ▼
 FastAPI (0.0.0.0:8000)
       │
@@ -125,5 +135,7 @@ FastAPI (0.0.0.0:8000)
       │         ├── InsightFace → embedding (512-d)
       │         └── Cosine Similarity vs. known_faces{}
       │
-      └── Static Files → static/index.html
+      ├── face_encodings.pkl  ← Cache em disco (pickle)
+      │
+      └── Static Files → static/index.html (test client)
 ```

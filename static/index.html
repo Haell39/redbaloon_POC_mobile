@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, user-scalable=no"
     />
-    <title>Autorização Selfie</title>
+    <title>Autorização Selfie — Test Client</title>
     <style>
       /* ── Reset & Base ── */
       *,
@@ -22,6 +22,7 @@
         --surface: #1a1d27;
         --accent: #6c5ce7;
         --success: #00b894;
+        --warning: #fdcb6e;
         --danger: #d63031;
         --text: #f0f0f0;
         --muted: #8a8a9a;
@@ -38,18 +39,18 @@
           sans-serif;
         background: var(--bg);
         color: var(--text);
-        overflow: hidden;
+        overflow-x: hidden;
       }
 
       /* ── Layout ── */
       .app {
         display: flex;
         flex-direction: column;
-        height: 100dvh; /* dynamic viewport height – mobile safe */
+        min-height: 100dvh;
         max-width: 480px;
         margin: 0 auto;
         padding: 16px 12px;
-        gap: 14px;
+        gap: 12px;
       }
 
       /* ── Header ── */
@@ -62,14 +63,28 @@
         letter-spacing: -0.3px;
       }
       header p {
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         color: var(--muted);
         margin-top: 2px;
+      }
+      .badge {
+        display: inline-block;
+        margin-top: 6px;
+        padding: 3px 10px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        border-radius: 20px;
+        background: rgba(108, 92, 231, 0.2);
+        color: var(--accent);
+        border: 1px solid rgba(108, 92, 231, 0.3);
       }
 
       /* ── Viewfinder ── */
       .viewfinder {
         flex: 1;
+        min-height: 280px;
         position: relative;
         border-radius: var(--radius);
         overflow: hidden;
@@ -84,7 +99,7 @@
         width: 100%;
         height: 100%;
         object-fit: cover;
-        transform: scaleX(-1); /* espelha câmera frontal */
+        transform: scaleX(-1);
       }
 
       /* Corner overlays */
@@ -142,34 +157,47 @@
         font-size: 0.85rem;
       }
 
-      /* ── Button ── */
-      .btn-verify {
-        width: 100%;
-        padding: 18px;
-        font-size: 1.15rem;
+      /* ── Buttons ── */
+      .actions {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      .btn {
+        flex: 1;
+        padding: 16px;
+        font-size: 1.05rem;
         font-weight: 700;
         border: none;
         border-radius: var(--radius);
-        background: var(--accent);
         color: #fff;
         cursor: pointer;
         transition:
           background 0.2s,
           transform 0.1s;
         letter-spacing: 0.3px;
-        flex-shrink: 0;
       }
-      .btn-verify:active {
+      .btn:active {
         transform: scale(0.97);
       }
-      .btn-verify:disabled {
+      .btn:disabled {
         opacity: 0.55;
         cursor: not-allowed;
+      }
+      .btn-primary {
+        background: var(--accent);
+      }
+      .btn-secondary {
+        flex: 0 0 auto;
+        padding: 16px 20px;
+        background: var(--surface);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 1.1rem;
       }
 
       /* ── Result card ── */
       .result {
-        display: none; /* hidden by default */
+        display: none;
         flex-direction: column;
         align-items: center;
         gap: 8px;
@@ -186,6 +214,9 @@
       .result.success {
         border: 2px solid var(--success);
       }
+      .result.warning {
+        border: 2px solid var(--warning);
+      }
       .result.error {
         border: 2px solid var(--danger);
       }
@@ -201,17 +232,48 @@
         font-size: 0.82rem;
         color: var(--muted);
       }
+      .result .message {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-style: italic;
+        margin-top: 2px;
+      }
 
       .result img.snap {
         width: 90px;
         height: 90px;
         border-radius: 50%;
         object-fit: cover;
-        border: 3px solid var(--success);
         margin-top: 4px;
       }
+      .result.success img.snap {
+        border: 3px solid var(--success);
+      }
+      .result.warning img.snap {
+        border: 3px solid var(--warning);
+      }
       .result.error img.snap {
-        border-color: var(--danger);
+        border: 3px solid var(--danger);
+      }
+
+      /* ── Status bar ── */
+      .status-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: var(--surface);
+        font-size: 0.72rem;
+        color: var(--muted);
+      }
+      .status-bar .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--success);
+        display: inline-block;
+        margin-right: 5px;
       }
 
       @keyframes fadeUp {
@@ -248,10 +310,21 @@
   </head>
   <body>
     <div class="app">
+      <!-- Header -->
       <header>
         <h1>🔐 Autorização Selfie</h1>
         <p>Posicione seu rosto e toque em validar</p>
+        <span class="badge">Test Client v0.2</span>
       </header>
+
+      <!-- Status bar -->
+      <div class="status-bar">
+        <span
+          ><span class="dot" id="statusDot"></span
+          ><span id="statusText">Conectando…</span></span
+        >
+        <span id="usersCount">—</span>
+      </div>
 
       <!-- Camera -->
       <div class="viewfinder">
@@ -261,7 +334,7 @@
         <div class="corner-br"></div>
       </div>
 
-      <!-- Capture canvas (hidden) -->
+      <!-- Hidden canvas -->
       <canvas id="canvas" style="display: none"></canvas>
 
       <!-- Result -->
@@ -270,31 +343,64 @@
         <img class="snap" id="resultSnap" alt="selfie" />
         <span class="name" id="resultName"></span>
         <span class="confidence" id="resultConf"></span>
+        <span class="message" id="resultMsg"></span>
       </div>
 
       <!-- Spinner -->
       <div class="spinner" id="spinner"></div>
 
-      <!-- Action -->
-      <button class="btn-verify" id="btnVerify" disabled>
-        📸 VALIDAR ACESSO
-      </button>
+      <!-- Actions -->
+      <div class="actions">
+        <button class="btn btn-primary" id="btnVerify" disabled>
+          📸 VALIDAR ACESSO
+        </button>
+        <button
+          class="btn btn-secondary"
+          id="btnRefresh"
+          title="Atualizar base de dados"
+        >
+          🔄
+        </button>
+      </div>
     </div>
 
     <script>
       (() => {
+        /* ── DOM refs ── */
         const video = document.getElementById("video");
         const canvas = document.getElementById("canvas");
         const btnVerify = document.getElementById("btnVerify");
+        const btnRefresh = document.getElementById("btnRefresh");
         const placeholder = document.getElementById("placeholder");
         const spinner = document.getElementById("spinner");
+        const statusDot = document.getElementById("statusDot");
+        const statusText = document.getElementById("statusText");
+        const usersCount = document.getElementById("usersCount");
         const resultDiv = document.getElementById("result");
         const resultIcon = document.getElementById("resultIcon");
         const resultSnap = document.getElementById("resultSnap");
         const resultName = document.getElementById("resultName");
         const resultConf = document.getElementById("resultConf");
+        const resultMsg = document.getElementById("resultMsg");
 
-        /* ── Iniciar câmera ── */
+        /* ── Fetch registered users (status check) ── */
+        async function fetchStatus() {
+          try {
+            const res = await fetch("/users");
+            const data = await res.json();
+            const n = data.users.length;
+            statusDot.style.background =
+              n > 0 ? "var(--success)" : "var(--warning)";
+            statusText.textContent = n > 0 ? "API Online" : "Sem cadastros";
+            usersCount.textContent = n + " cadastrado(s)";
+          } catch {
+            statusDot.style.background = "var(--danger)";
+            statusText.textContent = "API Offline";
+            usersCount.textContent = "—";
+          }
+        }
+
+        /* ── Camera ── */
         async function startCamera() {
           try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -310,18 +416,16 @@
               placeholder.style.display = "none";
               btnVerify.disabled = false;
             };
-          } catch (err) {
+          } catch {
             placeholder.textContent = "⚠ Câmera não disponível";
-            console.error(err);
           }
         }
 
-        /* ── Capturar frame ── */
+        /* ── Capture frame → Blob (simula o que o Angular fará) ── */
         function captureFrame() {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
           const ctx = canvas.getContext("2d");
-          // Espelha horizontalmente para bater com o que o usuário vê
           ctx.translate(canvas.width, 0);
           ctx.scale(-1, 1);
           ctx.drawImage(video, 0, 0);
@@ -330,23 +434,35 @@
           );
         }
 
-        /* ── Mostrar resultado ── */
-        function showResult({ match, name, confidence, snapUrl }) {
-          resultDiv.classList.remove("success", "error");
-          resultDiv.classList.add("show", match ? "success" : "error");
+        /* ── Render result card ── */
+        function showResult({ match, name, confidence, message, snapUrl }) {
+          resultDiv.classList.remove("show", "success", "warning", "error");
 
-          resultIcon.textContent = match ? "✅" : "❌";
+          let tier;
+          if (match) {
+            tier = "success";
+          } else if (confidence >= 0.5) {
+            tier = "warning";
+          } else {
+            tier = "error";
+          }
+
+          resultDiv.classList.add("show", tier);
+
+          const icons = { success: "✅", warning: "⚠️", error: "❌" };
+          resultIcon.textContent = icons[tier];
           resultName.textContent = name;
-          resultConf.textContent = match
-            ? `Confiança: ${(confidence * 100).toFixed(1)}%`
-            : confidence > 0
-              ? `Similaridade: ${(confidence * 100).toFixed(1)}%`
+          resultConf.textContent =
+            confidence > 0
+              ? `Confiança: ${(confidence * 100).toFixed(1)}%`
               : "";
+          resultMsg.textContent = message || "";
 
-          resultSnap.src = snapUrl;
+          if (snapUrl) resultSnap.src = snapUrl;
+          resultSnap.style.display = snapUrl ? "block" : "none";
         }
 
-        /* ── Fluxo principal ── */
+        /* ── Verify click ── */
         btnVerify.addEventListener("click", async () => {
           btnVerify.disabled = true;
           resultDiv.classList.remove("show");
@@ -355,7 +471,6 @@
           try {
             const blob = await captureFrame();
             const snapUrl = URL.createObjectURL(blob);
-
             const form = new FormData();
             form.append("file", blob, "selfie.jpg");
 
@@ -363,22 +478,38 @@
             const data = await res.json();
 
             showResult({ ...data, snapUrl });
-          } catch (err) {
+          } catch {
             showResult({
               match: false,
               name: "Erro de conexão",
               confidence: 0,
+              message: "Servidor indisponível.",
               snapUrl: "",
             });
-            console.error(err);
           } finally {
             spinner.classList.remove("show");
             btnVerify.disabled = false;
           }
         });
 
+        /* ── Refresh DB click ── */
+        btnRefresh.addEventListener("click", async () => {
+          btnRefresh.disabled = true;
+          try {
+            const res = await fetch("/refresh-db");
+            const data = await res.json();
+            alert(data.message);
+            fetchStatus();
+          } catch {
+            alert("Erro ao atualizar base de dados.");
+          } finally {
+            btnRefresh.disabled = false;
+          }
+        });
+
         /* ── Boot ── */
         startCamera();
+        fetchStatus();
       })();
     </script>
   </body>

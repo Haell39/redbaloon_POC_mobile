@@ -1,10 +1,11 @@
 """
-main.py — API FastAPI para o projeto "Autorização Selfie".
+main.py — API FastAPI para o projeto "Autorização Selfie" (MVP).
 
 Rotas:
-  POST /verify   → recebe imagem (UploadFile) e retorna match + confiança
-  GET  /users    → lista nomes carregados (debug)
-  GET  /         → serve frontend estático (static/)
+  POST /verify      → recebe selfie (UploadFile) e retorna verificação facial
+  GET  /users       → lista nomes cadastrados (debug)
+  GET  /refresh-db  → força releitura da pasta database/ e recria cache
+  GET  /             → serve frontend estático (static/)
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from face_logic import FaceService
+from face_core import FaceService
 
 # ------------------------------------------------------------------
 # Instância global do serviço de reconhecimento facial
@@ -26,22 +27,21 @@ face_service: FaceService | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Carrega o modelo e os embeddings assim que a API sobe."""
+    """Carrega o modelo e os embeddings (cache ou disco) no startup."""
     global face_service  # noqa: PLW0603
     face_service = FaceService()
-    face_service.load_from_disk()
+    face_service.startup()
     yield
-    # Shutdown — nada a limpar
 
 
 app = FastAPI(
     title="Autorização Selfie",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
 # ------------------------------------------------------------------
-# CORS — libera tudo (POC)
+# CORS — libera tudo (MVP local, sem HTTPS)
 # ------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
@@ -59,23 +59,25 @@ app.add_middleware(
 async def verify(file: UploadFile = File(...)):
     """Recebe uma selfie e retorna o resultado da verificação."""
     contents = await file.read()
-    name, confidence = face_service.verify_user(contents)
-
-    is_match = name not in ("Desconhecido", "Erro: imagem inválida", "Erro: nenhum rosto detectado")
-
-    return JSONResponse(
-        content={
-            "match": is_match,
-            "name": name,
-            "confidence": confidence,
-        }
-    )
+    result = face_service.verify_user(contents)
+    return JSONResponse(content=result)
 
 
 @app.get("/users")
 async def list_users():
     """Retorna os nomes carregados da pasta database/ (debug)."""
-    return {"users": list(face_service.known_faces.keys())}
+    return {"users": face_service.registered_names}
+
+
+@app.get("/refresh-db")
+async def refresh_database():
+    """Força a releitura da pasta database/ e recria o cache pkl."""
+    total = face_service.refresh()
+    return {
+        "status": "ok",
+        "message": f"Base atualizada com {total} rosto(s).",
+        "users": face_service.registered_names,
+    }
 
 
 # ------------------------------------------------------------------

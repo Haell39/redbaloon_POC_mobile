@@ -1,4 +1,4 @@
-# API — Autorização Selfie
+# API — Autorização Selfie (v0.2)
 
 Base URL: `http://<HOST>:8000`
 
@@ -26,24 +26,36 @@ Content-Type: multipart/form-data
 {
   "match": true,
   "name": "guilherme",
-  "confidence": 0.8732
+  "confidence": 0.8732,
+  "message": "Acesso autorizado."
 }
 ```
 
-| Campo      | Tipo    | Descrição                                                     |
-| ---------- | ------- | ------------------------------------------------------------- |
-| match      | boolean | `true` se confiança ≥ 0.5 e rosto reconhecido                 |
-| name       | string  | Nome do arquivo cadastrado (sem extensão) ou mensagem de erro |
-| confidence | float   | Score de similaridade de cosseno (0.0 – 1.0)                  |
+| Campo      | Tipo    | Descrição                                    |
+| ---------- | ------- | -------------------------------------------- |
+| match      | boolean | `true` se confiança ≥ 0.65                   |
+| name       | string  | Nome da pessoa ou "Desconhecido" / "Erro"    |
+| confidence | float   | Score de similaridade de cosseno (0.0 – 1.0) |
+| message    | string  | Mensagem descritiva do resultado             |
+
+**Faixas de confiança**
+
+| Faixa        | Score       | `match` | Cor         |
+| ------------ | ----------- | ------- | ----------- |
+| Autorizado   | `>= 0.65`   | `true`  | Verde ✅    |
+| Dúvida       | `0.50–0.64` | `false` | Amarelo ⚠️  |
+| Desconhecido | `< 0.50`    | `false` | Vermelho ❌ |
 
 **Cenários de resposta**
 
-| Situação                   | `match` | `name`                           | `confidence` |
-| -------------------------- | ------- | -------------------------------- | ------------ |
-| Rosto reconhecido          | `true`  | `"guilherme"`                    | `0.87`       |
-| Rosto não reconhecido      | `false` | `"Desconhecido"`                 | `0.31`       |
-| Nenhum rosto detectado     | `false` | `"Erro: nenhum rosto detectado"` | `0.0`        |
-| Arquivo de imagem inválido | `false` | `"Erro: imagem inválida"`        | `0.0`        |
+| Situação                    | `match` | `name`           | `confidence` | `message`                               |
+| --------------------------- | ------- | ---------------- | ------------ | --------------------------------------- |
+| Rosto reconhecido (>0.65)   | `true`  | `"guilherme"`    | `0.87`       | `"Acesso autorizado."`                  |
+| Confiança baixa (0.50–0.64) | `false` | `"guilherme"`    | `0.58`       | `"Confiança insuficiente. Tente…"`      |
+| Rosto não reconhecido       | `false` | `"Desconhecido"` | `0.31`       | `"Rosto não reconhecido."`              |
+| Nenhum rosto detectado      | `false` | `"Erro"`         | `0.0`        | `"Nenhum rosto detectado na imagem."`   |
+| Imagem inválida             | `false` | `"Erro"`         | `0.0`        | `"Imagem inválida ou corrompida."`      |
+| Sem cadastros               | `false` | `"Erro"`         | `0.0`        | `"Nenhum rosto cadastrado no sistema."` |
 
 **Exemplo cURL**
 
@@ -60,7 +72,30 @@ form.append("file", blob, "selfie.jpg");
 
 const response = await fetch("/verify", { method: "POST", body: form });
 const data = await response.json();
-// { match: true, name: "guilherme", confidence: 0.87 }
+// { match: true, name: "guilherme", confidence: 0.87, message: "Acesso autorizado." }
+```
+
+---
+
+### `GET /refresh-db`
+
+Força a releitura da pasta `database/`, regenera embeddings e recria o cache pickle.
+Útil ao cadastrar novas fotos sem reiniciar o servidor.
+
+**Response `200 OK`**
+
+```json
+{
+  "status": "ok",
+  "message": "Base atualizada com 3 rosto(s).",
+  "users": ["ana", "carlos", "guilherme"]
+}
+```
+
+**Exemplo cURL**
+
+```bash
+curl http://localhost:8000/refresh-db
 ```
 
 ---
@@ -111,9 +146,19 @@ http://<IP_DO_PC>:8000
 
 ---
 
-## Notas de Segurança (POC)
+## Notas de Segurança (MVP)
 
 - CORS configurado com `allow_origins=["*"]` — qualquer origem permitida.
 - Sem autenticação. Para produção, adicionar API Key ou JWT.
 - Sem HTTPS. Para acesso seguro à câmera em produção, usar certificado TLS
   (o `getUserMedia` exige HTTPS fora de `localhost`).
+
+---
+
+## Integração Angular
+
+Ver arquivo `angular_snippet.ts` na raiz do projeto com:
+
+- `FaceVerifyService` — service com `verify()`, `getUsers()`, `refreshDatabase()`.
+- `SelfieComponent` — componente com câmera, captura e exibição de resultado.
+- Notas de configuração (imports, `apiUrl`, HTTPS).
