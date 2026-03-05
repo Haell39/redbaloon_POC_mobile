@@ -1,0 +1,26 @@
+services:
+  identity-service:
+    build: .
+    container_name: identity-service
+    ports:
+      - "8000:8000"
+    volumes:
+      # Permite atualizar .pkl e fotos sem rebuild
+      - ./data:/app/data
+      - ./database:/app/database
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
