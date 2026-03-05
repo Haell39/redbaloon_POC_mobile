@@ -1,11 +1,14 @@
-# ── Build stage ──────────────────────────────────────────────────────
+# ── Stage base ───────────────────────────────────────────────────────
 FROM python:3.11-slim AS base
 
-# Evita prompts interativos e bufferiza stdout/stderr
+# Sem buffer + sem .pyc + locale consistente
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONIOENCODING=UTF-8 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Dependências de sistema para OpenCV + InsightFace (compilação + runtime)
+# Dependências de sistema para OpenCV + InsightFace
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         build-essential \
@@ -19,25 +22,36 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# Instala dependências Python (camada cacheável)
+# ── Dependências Python (camada cacheável) ───────────────────────────
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
-# Copia código-fonte
+# ── Código-fonte ─────────────────────────────────────────────────────
 COPY src/ ./src/
 
-# Copia fotos cadastradas (se existirem no repo)
-COPY database/ ./database/
+# ── Dados (PKLs e tabelas) ───────────────────────────────────────────
+# Criados aqui para garantir que existam mesmo sem volume mapeado
+RUN mkdir -p database database_equip tabelas logs data
 
-# Copia cache de embeddings (se existir no repo)
-COPY data/ ./data/
+COPY database/      ./database/
+COPY database_equip/ ./database_equip/
+COPY tabelas/       ./tabelas/
 
-# Cria diretórios de runtime (caso não existam)
-RUN mkdir -p data logs database
-
+# ── Porta exposta ────────────────────────────────────────────────────
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+# ── Healthcheck (EasyPanel aguarda "healthy" antes de rotear tráfego) ─
+HEALTHCHECK \
+    --interval=30s \
+    --timeout=10s \
+    --start-period=120s \
+    --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# ── Entrypoint ───────────────────────────────────────────────────────
+# workers=1 para CPU única do KVM 4; aumente se tiver mais vCPUs
+CMD ["uvicorn", "src.main:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--workers", "1", \
+     "--log-level", "info"]

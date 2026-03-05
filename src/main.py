@@ -2,11 +2,10 @@
 main.py — Microserviço de Identidade (FastAPI).
 
 Endpoints:
-  POST /verify      → recebe imagem e retorna verificação facial
-  GET  /refresh-db  → força releitura da pasta database/ e recria cache
-  GET  /users       → lista nomes cadastrados (debug)
-  GET  /health      → healthcheck para orquestradores
-  GET  /            → serve test client estático (static/)
+  POST /verify      → recebe imagem e retorna verificação facial (dual-bank + CSV)
+  GET  /refresh-db  → recarrega PKLs e CSV sem reiniciar o serviço
+  GET  /users       → lista rostos cadastrados em cada banco (debug)
+  GET  /health      → healthcheck para Docker / EasyPanel
 """
 
 from __future__ import annotations
@@ -19,9 +18,8 @@ from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 
-from src.config import API_HOST, API_PORT, API_TITLE, API_VERSION, LOGS_DIR, STATIC_DIR
+from src.config import API_HOST, API_PORT, API_TITLE, API_VERSION, LOGS_DIR
 from src.services.face_service import FaceService
 
 # ── Logging ─────────────────────────────────────────────────────────
@@ -50,7 +48,9 @@ async def lifespan(app: FastAPI):
     face_service = FaceService()
     face_service.startup()
     logger.info(
-        "Pronto — %d rosto(s) carregado(s).", face_service.total_registered
+        "Pronto — %d responsável(is), %d membro(s) de equipe.",
+        face_service.total_resp,
+        face_service.total_equip,
     )
     yield
     logger.info("Encerrando Identity Service.")
@@ -62,7 +62,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── CORS — libera qualquer origem (Angular 4200 → Python 8000) ─────
+# ── CORS ─────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -80,9 +80,14 @@ app.add_middleware(
 async def verify(file: UploadFile = File(...)):
     """Recebe selfie (multipart) e retorna verificação facial.
 
-    Retorno:
-        {"id": str, "status": "match"|"no_match"|"doubt"|"error", "confidence": float, "message": str}
+    Retorno base:
+        {"id", "filename", "status", "confidence", "source", "message"}
+    Campos adicionais quando source=="resp" e há dados no CSV:
+        {"nome", "cpf", "numero", "ativo", "origem"}
     """
+    if face_service is None:
+        raise HTTPException(status_code=503, detail="Serviço não inicializado.")
+
     contents = await file.read()
     if not contents:
         raise HTTPException(status_code=400, detail="Arquivo enviado está vazio.")
@@ -93,38 +98,54 @@ async def verify(file: UploadFile = File(...)):
 
 @app.get("/refresh-db")
 async def refresh_database():
-    """Força releitura da pasta database/ e recria o cache."""
-    total = face_service.refresh()
-    logger.info("Base atualizada: %d rosto(s).", total)
+    """Recarrega PKLs dos dois bancos e o índice do CSV sem reiniciar."""
+    if face_service is None:
+        raise HTTPException(status_code=503, detail="Serviço não inicializado.")
+
+    counts = face_service.refresh()
+    logger.info("Base recarregada: %s", counts)
     return {
-        "status": "ok",
-        "message": f"Base atualizada com {total} rosto(s).",
-        "users": face_service.registered_names,
+        "status":  "ok",
+        "message": (
+            f"Base atualizada — {counts['resp']} responsável(is), "
+            f"{counts['equip']} equipe, {counts['csv']} entrada(s) no CSV."
+        ),
+        "resp_total":  counts["resp"],
+        "equip_total": counts["equip"],
+        "csv_total":   counts["csv"],
     }
 
 
 @app.get("/users")
 async def list_users():
-    """Lista nomes cadastrados (debug)."""
+    """Lista rostos cadastrados em cada banco (debug)."""
+    if face_service is None:
+        raise HTTPException(status_code=503, detail="Serviço não inicializado.")
+
     return {
-        "total": face_service.total_registered,
-        "users": face_service.registered_names,
+        "resp": {
+            "total": face_service.total_resp,
+            "users": face_service.registered_names_resp,
+        },
+        "equip": {
+            "total": face_service.total_equip,
+            "users": face_service.registered_names_equip,
+        },
     }
 
 
 @app.get("/health")
 async def health():
-    """Healthcheck para Docker / orquestradores."""
+    """Healthcheck para Docker / EasyPanel."""
+    if face_service is None:
+        return JSONResponse(status_code=503, content={"status": "starting"})
+
     return {
-        "status": "healthy",
-        "model": "buffalo_l",
-        "registered_faces": face_service.total_registered,
+        "status":      "healthy",
+        "model":       "buffalo_l",
+        "resp_faces":  face_service.total_resp,
+        "equip_faces": face_service.total_equip,
     }
-
-
-# ── Arquivos estáticos (test client) ───────────────────────────────
-if STATIC_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 
 # ── Entrypoint ──────────────────────────────────────────────────────

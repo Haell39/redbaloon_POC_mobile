@@ -6,17 +6,22 @@ from pathlib import Path
 
 # ── Diretórios ──────────────────────────────────────────────────────
 ROOT_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT_DIR / "data"
+DATA_DIR  = ROOT_DIR / "data"
+LOGS_DIR  = ROOT_DIR / "logs"
+
+# Banco de rostos — responsáveis (PKL gerado pelo Vetorizator)
 DATABASE_DIR = ROOT_DIR / "database"
-LOGS_DIR = ROOT_DIR / "logs"
-STATIC_DIR = ROOT_DIR / "static"
 
-CACHE_FILE = DATA_DIR / "face_encodings.pkl"
+# Banco de rostos — equipe interna
+DATABASE_EQUIP_DIR = ROOT_DIR / "database_equip"
 
-# ── Modelo ──────────────────────────────────────────────────────────
-MODEL_NAME = "buffalo_l"
+# Tabela de responsáveis para enriquecimento de dados
+CSV_FILE = ROOT_DIR / "tabelas" / "tabela de responsaveishomolog.csv"
+
+# ── Modelo InsightFace ──────────────────────────────────────────────
+MODEL_NAME      = "buffalo_l"
 MODEL_PROVIDERS = ["CPUExecutionProvider"]
-DET_SIZE = (640, 640)
+DET_SIZE        = (640, 640)
 
 # ── Thresholds de confiança ─────────────────────────────────────────
 THRESHOLD_MATCH = 0.65   # Match confirmado
@@ -26,7 +31,7 @@ THRESHOLD_DOUBT = 0.50   # Faixa de dúvida
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 # ── API ─────────────────────────────────────────────────────────────
-API_HOST = "0.0.0.0"
-API_PORT = 8000
-API_TITLE = "Identity Service — Reconhecimento Facial"
-API_VERSION = "1.0.0"
+API_HOST    = "0.0.0.0"
+API_PORT    = 8000
+API_TITLE   = "Identity Service — Reconhecimento Facial"
+API_VERSION = "1.1.0"

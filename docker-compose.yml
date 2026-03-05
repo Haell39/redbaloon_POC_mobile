@@ -5,9 +5,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Permite atualizar .pkl e fotos sem rebuild
-      - ./data:/app/data
+      # Permite atualizar PKLs / tabelas sem rebuild de imagem
       - ./database:/app/database
+      - ./database_equip:/app/database_equip
+      - ./tabelas:/app/tabelas
       - ./logs:/app/logs
     environment:
       - PYTHONUNBUFFERED=1
@@ -21,6 +22,6 @@ services:
           "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
         ]
       interval: 30s
-      timeout: 5s
-      start_period: 60s
+      timeout: 10s
+      start_period: 120s
       retries: 3
