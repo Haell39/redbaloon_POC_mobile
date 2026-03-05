@@ -5,11 +5,16 @@ FROM python:3.11-slim AS base
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Dependências de sistema para OpenCV + InsightFace
+# Dependências de sistema para OpenCV + InsightFace (compilação + runtime)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
         libgl1 \
         libglib2.0-0 \
+        libsm6 \
+        libxext6 \
+        libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
