@@ -257,25 +257,22 @@ class FaceService:
     ) -> dict:
         resp: dict = {
             "id":         id_,
-            "filename":   filename,
             "status":     status,
             "confidence": round(confidence, 4),
             "source":     source,
             "message":    message,
         }
         if csv_row:
-            resp["nome"]   = csv_row.get("nome")
-            resp["cpf"]    = csv_row.get("cpf")
-            resp["numero"] = csv_row.get("numero")
-            resp["ativo"]  = csv_row.get("ativo")
-            resp["origem"] = csv_row.get("origem")
+            for key in ("nome", "cpf", "numero", "ativo", "origem"):
+                val = csv_row.get(key)
+                if val:  # Só adiciona se não for vazio ou null
+                    resp[key] = val
         return resp
 
     @staticmethod
     def _err(message: str) -> dict:
         return {
             "id":         "unknown",
-            "filename":   "",
             "status":     "error",
             "confidence": 0.0,
             "source":     "unknown",
@@ -286,7 +283,6 @@ class FaceService:
     def _no_match(confidence: float) -> dict:
         return {
             "id":         "unknown",
-            "filename":   "",
             "status":     "no_match",
             "confidence": round(confidence, 4),
             "source":     "unknown",

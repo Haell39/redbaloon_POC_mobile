@@ -16,7 +16,7 @@ DATABASE_DIR = ROOT_DIR / "database"
 DATABASE_EQUIP_DIR = ROOT_DIR / "database_equip"
 
 # Tabela de responsáveis para enriquecimento de dados
-CSV_FILE = ROOT_DIR / "tabelas" / "tabela de responsaveishomolog.csv"
+CSV_FILE = ROOT_DIR / "tabelas" / "tabela_prod_responsaveis.csv"
 
 # ── Modelo InsightFace ──────────────────────────────────────────────
 MODEL_NAME      = "buffalo_l"
