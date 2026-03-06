@@ -31,10 +31,9 @@ COPY src/ ./src/
 
 # ── Dados (PKLs e tabelas) ───────────────────────────────────────────
 # Criados aqui para garantir que existam mesmo sem volume mapeado
-RUN mkdir -p database database_equip tabelas logs data
+RUN mkdir -p database tabelas logs data
 
 COPY database/      ./database/
-COPY database_equip/ ./database_equip/
 COPY tabelas/       ./tabelas/
 
 # ── Porta exposta ────────────────────────────────────────────────────

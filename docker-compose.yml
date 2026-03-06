@@ -7,7 +7,6 @@ services:
     volumes:
       # Permite atualizar PKLs / tabelas sem rebuild de imagem
       - ./database:/app/database
-      - ./database_equip:/app/database_equip
       - ./tabelas:/app/tabelas
       - ./logs:/app/logs
     environment:
