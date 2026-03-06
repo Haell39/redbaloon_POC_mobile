@@ -12,6 +12,7 @@ services:
       - ./logs:/app/logs
     environment:
       - PYTHONUNBUFFERED=1
+      - API_KEY=${API_KEY:-changeme-insecure-key-12345}
     restart: unless-stopped
     healthcheck:
       test:

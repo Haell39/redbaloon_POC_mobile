@@ -30,8 +30,15 @@ THRESHOLD_DOUBT = 0.50   # Faixa de dúvida
 # ── Imagens aceitas ─────────────────────────────────────────────────
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
+# ── PKL de registros dinâmicos (novos cadastros via /register) ──────
+REGISTER_PKL_FILE = DATABASE_DIR / "registered_faces.pkl"
+
 # ── API ─────────────────────────────────────────────────────────────
 API_HOST    = "0.0.0.0"
 API_PORT    = 8000
 API_TITLE   = "Identity Service — Reconhecimento Facial"
-API_VERSION = "1.1.0"
+API_VERSION = "1.2.0"
+
+# ── Autenticação ────────────────────────────────────────────────────
+import os
+API_KEY = os.environ.get("API_KEY", "changeme-insecure-key-12345")

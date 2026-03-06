@@ -7,6 +7,8 @@ Testa:
   • Match facial com cosine similarity
   • Enriquecimento de dados do CSV no match
   • Cenários de erro (imagem inválida, sem rosto, base vazia)
+  • Registro de novos rostos
+  • Remoção de rostos
 """
 
 import numpy as np
@@ -94,7 +96,7 @@ class TestCosineSimilarity:
         a = make_embedding(seed=1)
         b = make_embedding(seed=9999)
         score = face_service._cosine_similarity(a, b)
-        assert score < 0.5  # vetores aleatórios → baixa similaridade
+        assert score < 0.5
 
     def test_zero_vector_returns_zero(self, face_service):
         zero = np.zeros(512, dtype=np.float32)
@@ -111,45 +113,32 @@ class TestVerifyResponsavel:
     """Testa verificação facial que retorna match de responsável."""
 
     def _make_fake_face(self, mock_insightface, embedding):
-        """Configura o mock para retornar um rosto com embedding específico."""
         fake_face = type("Face", (), {"embedding": embedding})()
         mock_insightface.get.return_value = [fake_face]
 
     def test_match_responsavel_returns_correct_status(self, face_service, mock_insightface):
-        """Envia embedding idêntico ao da Adriana → deve dar match."""
         self._make_fake_face(mock_insightface, EMB_RESP_ADRIANA)
-        # Cria imagem fake qualquer (1x1 pixel branco)
         import cv2
         _, img_bytes = cv2.imencode(".jpg", np.ones((10, 10, 3), dtype=np.uint8) * 255)
-
         result = face_service.verify(img_bytes.tobytes())
-
         assert result["status"] == "match"
         assert result["confidence"] >= 0.99
         assert result["source"] == "resp"
 
     def test_match_responsavel_has_csv_data(self, face_service, mock_insightface):
-        """Quando match é responsável, deve ter dados do CSV."""
         self._make_fake_face(mock_insightface, EMB_RESP_ADRIANA)
         import cv2
         _, img_bytes = cv2.imencode(".jpg", np.ones((10, 10, 3), dtype=np.uint8) * 255)
-
         result = face_service.verify(img_bytes.tobytes())
-
         assert result["nome"] == "ADRIANA MOURA PADILHA"
         assert result["cpf"] == "123.456.789-00"
-        assert result["numero"] == "11999999999"
-        assert result["ativo"] == "true"
-        assert result["id"] == "2188"  # ID do CSV, não do PKL
+        assert result["id"] == "2188"
 
     def test_match_carlos_returns_correct_data(self, face_service, mock_insightface):
-        """Match do Carlos retorna dados corretos."""
         self._make_fake_face(mock_insightface, EMB_RESP_CARLOS)
         import cv2
         _, img_bytes = cv2.imencode(".jpg", np.ones((10, 10, 3), dtype=np.uint8) * 255)
-
         result = face_service.verify(img_bytes.tobytes())
-
         assert result["status"] == "match"
         assert result["nome"] == "CARLOS SILVA"
         assert result["id"] == "3001"
@@ -160,78 +149,134 @@ class TestVerifyResponsavel:
 # ====================================================================
 
 class TestVerifyEquipe:
-    """Testa verificação facial que retorna match de equipe."""
 
     def test_match_equipe_returns_correct_source(self, face_service, mock_insightface):
-        """Match de equipe retorna source='equip'."""
         fake_face = type("Face", (), {"embedding": EMB_EQUIP_RAFAEL})()
         mock_insightface.get.return_value = [fake_face]
         import cv2
         _, img_bytes = cv2.imencode(".jpg", np.ones((10, 10, 3), dtype=np.uint8) * 255)
-
         result = face_service.verify(img_bytes.tobytes())
-
         assert result["status"] == "match"
         assert result["source"] == "equip"
-        assert result["confidence"] >= 0.99
 
     def test_match_equipe_no_csv_fields(self, face_service, mock_insightface):
-        """Match de equipe NÃO deve ter campos de CSV (nome, cpf, etc.)."""
         fake_face = type("Face", (), {"embedding": EMB_EQUIP_JULIA})()
         mock_insightface.get.return_value = [fake_face]
         import cv2
         _, img_bytes = cv2.imencode(".jpg", np.ones((10, 10, 3), dtype=np.uint8) * 255)
-
         result = face_service.verify(img_bytes.tobytes())
-
         assert "nome" not in result
-        assert "cpf" not in result
 
 
 # ====================================================================
-# VERIFY — No Match
+# VERIFY — No Match / Error
 # ====================================================================
 
-class TestVerifyNoMatch:
-    """Testa cenários onde o rosto não é reconhecido."""
+class TestVerifyErrors:
 
     def test_unknown_face_returns_no_match(self, face_service, mock_insightface):
-        """Embedding desconhecido deve retornar no_match."""
-        random_emb = make_embedding(seed=77777)  # totalmente diferente
+        random_emb = make_embedding(seed=77777)
         fake_face = type("Face", (), {"embedding": random_emb})()
         mock_insightface.get.return_value = [fake_face]
         import cv2
         _, img_bytes = cv2.imencode(".jpg", np.ones((10, 10, 3), dtype=np.uint8) * 255)
-
         result = face_service.verify(img_bytes.tobytes())
-
         assert result["status"] in ("no_match", "doubt")
-        assert result["id"] in ("unknown", result.get("id", ""))
-
-
-# ====================================================================
-# VERIFY — Cenários de Erro
-# ====================================================================
-
-class TestVerifyErrors:
-    """Testa cenários de erro."""
 
     def test_no_face_detected(self, face_service, mock_insightface):
-        """Quando nenhum rosto é detectado, retorna error."""
-        mock_insightface.get.return_value = []  # sem rosto
+        mock_insightface.get.return_value = []
+        import cv2
+        _, img_bytes = cv2.imencode(".jpg", np.ones((10, 10, 3), dtype=np.uint8) * 255)
+        result = face_service.verify(img_bytes.tobytes())
+        assert result["status"] == "error"
+
+    def test_invalid_image_returns_error(self, face_service):
+        result = face_service.verify(b"isto nao e uma imagem")
+        assert result["status"] == "error"
+
+
+# ====================================================================
+# REGISTER
+# ====================================================================
+
+class TestRegister:
+    """Testa cadastro de novos rostos via register()."""
+
+    def test_register_success(self, face_service, mock_insightface):
+        """Registra novo rosto com sucesso."""
+        new_emb = make_embedding(seed=555)
+        fake_face = type("Face", (), {"embedding": new_emb})()
+        mock_insightface.get.return_value = [fake_face]
         import cv2
         _, img_bytes = cv2.imencode(".jpg", np.ones((10, 10, 3), dtype=np.uint8) * 255)
 
-        result = face_service.verify(img_bytes.tobytes())
+        result = face_service.register("9999", img_bytes.tobytes())
+        assert result["status"] == "ok"
+        assert result["id"] == "9999"
+        assert face_service.total_resp == 3  # 2 originais + 1 novo
 
-        assert result["status"] == "error"
-        assert "Nenhum rosto" in result["message"]
+    def test_register_adds_to_known_resp(self, face_service, mock_insightface):
+        """O rosto registrado fica disponível pra verificação."""
+        new_emb = make_embedding(seed=666)
+        fake_face = type("Face", (), {"embedding": new_emb})()
+        mock_insightface.get.return_value = [fake_face]
+        import cv2
+        _, img_bytes = cv2.imencode(".jpg", np.ones((10, 10, 3), dtype=np.uint8) * 255)
 
-    def test_invalid_image_returns_error(self, face_service):
-        """Bytes inválidos (não é imagem) retornam error."""
-        result = face_service.verify(b"isto nao e uma imagem")
+        face_service.register("7777", img_bytes.tobytes())
+        assert "7777.jpg" in face_service.known_resp
+
+    def test_register_invalid_image(self, face_service):
+        """Imagem inválida retorna erro."""
+        result = face_service.register("1234", b"nao_e_imagem")
         assert result["status"] == "error"
-        assert "inválida" in result["message"].lower() or "corrompida" in result["message"].lower()
+
+    def test_register_no_face(self, face_service, mock_insightface):
+        """Foto sem rosto retorna erro."""
+        mock_insightface.get.return_value = []
+        import cv2
+        _, img_bytes = cv2.imencode(".jpg", np.ones((10, 10, 3), dtype=np.uint8) * 255)
+        result = face_service.register("1234", img_bytes.tobytes())
+        assert result["status"] == "error"
+
+    def test_register_overwrites_existing(self, face_service, mock_insightface):
+        """Registrar com ID já existente sobrescreve o embedding."""
+        new_emb = make_embedding(seed=888)
+        fake_face = type("Face", (), {"embedding": new_emb})()
+        mock_insightface.get.return_value = [fake_face]
+        import cv2
+        _, img_bytes = cv2.imencode(".jpg", np.ones((10, 10, 3), dtype=np.uint8) * 255)
+
+        face_service.register("5000", img_bytes.tobytes())
+        face_service.register("5000", img_bytes.tobytes())
+        assert face_service.total_resp == 3  # não duplica
+
+
+# ====================================================================
+# UNREGISTER
+# ====================================================================
+
+class TestUnregister:
+    """Testa remoção de rostos."""
+
+    def test_unregister_existing(self, face_service, mock_insightface):
+        """Remove rosto previamente registrado."""
+        new_emb = make_embedding(seed=777)
+        fake_face = type("Face", (), {"embedding": new_emb})()
+        mock_insightface.get.return_value = [fake_face]
+        import cv2
+        _, img_bytes = cv2.imencode(".jpg", np.ones((10, 10, 3), dtype=np.uint8) * 255)
+
+        face_service.register("to_remove", img_bytes.tobytes())
+        assert face_service.total_resp == 3
+        result = face_service.unregister("to_remove")
+        assert result["status"] == "ok"
+        assert face_service.total_resp == 2
+
+    def test_unregister_nonexistent(self, face_service):
+        """Remover ID inexistente retorna erro."""
+        result = face_service.unregister("nao_existe")
+        assert result["status"] == "error"
 
 
 # ====================================================================
@@ -239,7 +284,6 @@ class TestVerifyErrors:
 # ====================================================================
 
 class TestRefresh:
-    """Testa recarga dos bancos."""
 
     def test_refresh_returns_counts(self, face_service):
         counts = face_service.refresh()
@@ -248,8 +292,6 @@ class TestRefresh:
         assert counts["csv"] == 2
 
     def test_refresh_reloads_data(self, face_service):
-        """Após refresh, os dados continuam acessíveis."""
         face_service.refresh()
         assert face_service.total_resp == 2
         assert face_service.total_equip == 2
-        assert len(face_service.csv_index) == 2

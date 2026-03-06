@@ -29,6 +29,7 @@ from src.config import (
     DET_SIZE,
     MODEL_NAME,
     MODEL_PROVIDERS,
+    REGISTER_PKL_FILE,
     THRESHOLD_DOUBT,
     THRESHOLD_MATCH,
 )
@@ -75,6 +76,61 @@ class FaceService:
         equip = self._load_bank(DATABASE_EQUIP_DIR, self.known_equip, "equipe")
         self._load_csv()
         return {"resp": resp, "equip": equip, "csv": len(self.csv_index)}
+
+    # ── Registro de novo rosto ──────────────────────────────────────
+    def register(self, resp_id: str, file_bytes: bytes) -> dict:
+        """Vetoriza uma foto e cadastra o rosto no banco de responsáveis.
+
+        Args:
+            resp_id:    ID do responsável (vem do backend Node)
+            file_bytes: bytes da imagem (JPEG/PNG)
+
+        Retorno:
+            {"status": "ok"|"error", "id": str, "message": str}
+        """
+        arr = np.frombuffer(file_bytes, dtype=np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if img is None:
+            logger.warning("[register] Imagem inválida para id=%s.", resp_id)
+            return {"status": "error", "id": resp_id, "message": "Imagem inválida ou corrompida."}
+
+        faces = self.app.get(img)
+        if not faces:
+            logger.warning("[register] Nenhum rosto detectado para id=%s.", resp_id)
+            return {"status": "error", "id": resp_id, "message": "Nenhum rosto detectado na imagem."}
+
+        if len(faces) > 1:
+            logger.warning("[register] Múltiplos rostos detectados para id=%s. Usando o primeiro.", resp_id)
+
+        embedding = faces[0].embedding
+        filename = f"{resp_id}.jpg"
+
+        self.known_resp[filename] = {
+            "id": str(resp_id),
+            "filename": filename,
+            "embedding": embedding,
+        }
+
+        self._persist_registered()
+
+        logger.info("[register] Rosto cadastrado: id=%s (total resp=%d).", resp_id, self.total_resp)
+        return {
+            "status": "ok",
+            "id": resp_id,
+            "message": f"Rosto cadastrado com sucesso. Total: {self.total_resp} responsável(is).",
+        }
+
+    # ── Remoção de rosto ────────────────────────────────────────────
+    def unregister(self, resp_id: str) -> dict:
+        """Remove um rosto do banco de responsáveis."""
+        filename = f"{resp_id}.jpg"
+        if filename not in self.known_resp:
+            return {"status": "error", "id": resp_id, "message": "ID não encontrado na base."}
+
+        del self.known_resp[filename]
+        self._persist_registered()
+        logger.info("[unregister] Rosto removido: id=%s.", resp_id)
+        return {"status": "ok", "id": resp_id, "message": "Rosto removido com sucesso."}
 
     # ── Verificação ─────────────────────────────────────────────────
     def verify(self, file_bytes: bytes) -> dict:
@@ -322,3 +378,24 @@ class FaceService:
             logger.info("CSV indexado: %d entrada(s) [chave=foto].", len(self.csv_index))
         except Exception:
             logger.exception("Erro ao carregar CSV '%s'.", CSV_FILE)
+
+    # ── Persistência de registros dinâmicos ──────────────────────────
+    def _persist_registered(self) -> None:
+        """Salva todos os rostos do banco resp em registered_faces.pkl.
+
+        Formato: lista de dicts [{id, filename, embedding}, ...] (Vetorizator-compatible).
+        """
+        try:
+            REGISTER_PKL_FILE.parent.mkdir(parents=True, exist_ok=True)
+            data = []
+            for entry in self.known_resp.values():
+                data.append({
+                    "id": entry["id"],
+                    "filename": entry["filename"],
+                    "embedding": entry["embedding"],
+                })
+            with open(REGISTER_PKL_FILE, "wb") as f:
+                pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+            logger.info("Registros persistidos: %s (%d rosto(s)).", REGISTER_PKL_FILE.name, len(data))
+        except Exception:
+            logger.exception("Falha ao persistir registros.")

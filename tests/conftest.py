@@ -140,6 +140,7 @@ def face_service(tmp_project, mock_insightface):
         DATABASE_DIR=tmp_project / "database",
         DATABASE_EQUIP_DIR=tmp_project / "database_equip",
         CSV_FILE=tmp_project / "tabelas" / "tabela de responsaveishomolog.csv",
+        REGISTER_PKL_FILE=tmp_project / "database" / "registered_faces.pkl",
     ):
         from src.services.face_service import FaceService
         svc = FaceService()
